@@ -3,9 +3,9 @@ export default function ChatBubble({ message }) {
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
       {!isUser && (
-        <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm mr-3 mt-1 shrink-0"
-          style={{ background: '#f97316' }}>
-          <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>travel_explore</span>
+        <div className="w-9 h-9 rounded-full flex items-center justify-center mr-3 mt-1 shrink-0 overflow-hidden"
+          style={{ background: '#fff', border: '1px solid #e0d9cc' }}>
+          <img src="/logo.png" alt="AI Pugyo" style={{ width: '70%', height: '70%', objectFit: 'contain' }} />
         </div>
       )}
       <div className={`max-w-[75%] px-4 py-3 text-sm leading-relaxed`}

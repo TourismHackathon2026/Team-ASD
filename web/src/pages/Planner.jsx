@@ -128,14 +128,31 @@ export default function Planner() {
                   </div>
                 </div>
 
+                {/* ── Budget slider with − / + steppers (step 6 change) ── */}
                 <div>
                   <label className="block font-semibold mb-3" style={{ color: '#1f1b17' }}>
                     Budget: <span style={{ color: '#f97316' }}>${form.budget}/day</span>
                   </label>
-                  <input type="range" min={20} max={200} step={10} value={form.budget}
-                    onChange={e => setForm({ ...form, budget: +e.target.value })}
-                    className="w-full h-2 rounded-full appearance-none cursor-pointer"
-                    style={{ accentColor: '#f97316' }} />
+                  <div className="flex items-center gap-3">
+                    <button type="button"
+                      onClick={() => setForm(f => ({ ...f, budget: Math.max(20, f.budget - 5) }))}
+                      className="w-9 h-9 rounded-full border flex items-center justify-center font-bold text-lg transition-all hover:bg-gray-50"
+                      style={{ borderColor: '#e0d9cc', color: '#9d4300', flexShrink: 0 }}
+                      aria-label="Decrease budget by $5">
+                      −
+                    </button>
+                    <input type="range" min={20} max={200} step={5} value={form.budget}
+                      onChange={e => setForm({ ...form, budget: +e.target.value })}
+                      className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                      style={{ accentColor: '#f97316' }} />
+                    <button type="button"
+                      onClick={() => setForm(f => ({ ...f, budget: Math.min(200, f.budget + 5) }))}
+                      className="w-9 h-9 rounded-full border flex items-center justify-center font-bold text-lg transition-all hover:bg-gray-50"
+                      style={{ borderColor: '#e0d9cc', color: '#9d4300', flexShrink: 0 }}
+                      aria-label="Increase budget by $5">
+                      +
+                    </button>
+                  </div>
                   <div className="flex justify-between text-xs mt-1" style={{ color: '#8c7164' }}>
                     <span>$20</span><span>$200</span>
                   </div>

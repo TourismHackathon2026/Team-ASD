@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import Navbar from '../components/Navbar';
 
 const features = [
   { icon: 'chat_bubble', title: 'Intelligent Assistant', desc: 'Instant answers about weather, difficulty, and cultural etiquette in any regional dialect.', to: '/chat' },
@@ -11,13 +12,6 @@ export default function Landing() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || 'null');
 
-  function logout() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/');
-    window.location.reload();
-  }
-
   function guardedNavigate(to, label) {
     if (!user) {
       navigate('/login', { state: { message: `Please sign in first to access ${label}.` } });
@@ -29,127 +23,8 @@ export default function Landing() {
   return (
     <div style={{ background: '#fff8f4', color: '#1f1b17', fontFamily: 'Manrope, sans-serif' }}>
 
-      {/* ── Navbar ── */}
-      <nav style={{
-        background: 'rgba(255,248,244,0.95)', backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid #e0d9cc', position: 'sticky', top: 0, zIndex: 50
-      }}>
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '10px 24px', maxWidth: 1280, margin: '0 auto'
-        }}>
-          {/* Logo */}
-          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-            <img src="/logo.png" alt="AI Pugyo" style={{ height: 44, width: 'auto' }} />
-            <span style={{ fontWeight: 800, fontSize: 18, color: '#9d4300', fontFamily: 'Manrope, sans-serif' }}>
-              AI Pugyo
-            </span>
-          </Link>
-
-          {/* Nav links */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 32 }} className="hidden md:flex">
-            {[
-              { label: 'Chat', to: '/chat' },
-              { label: 'Planner', to: '/planner' },
-              { label: 'Explorer', to: '/heritage' },
-              { label: 'Map', to: '/map' },
-            ].map(({ label, to }) => (
-              <button key={label} onClick={() => guardedNavigate(to, label)}
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  fontSize: 14, fontWeight: 600, color: '#584237',
-                  fontFamily: 'Manrope', padding: 0
-                }}
-                onMouseEnter={e => e.currentTarget.style.color = '#9d4300'}
-                onMouseLeave={e => e.currentTarget.style.color = '#584237'}>
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* Right: user avatar or sign in */}
-          <div style={{ position: 'relative' }}>
-            {user ? (
-              <div className="group" style={{ position: 'relative' }}>
-                <button style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  background: '#fff', border: '1.5px solid #e0d9cc',
-                  borderRadius: 999, padding: '6px 14px 6px 8px',
-                  cursor: 'pointer', fontFamily: 'Manrope'
-                }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%',
-                    background: '#f97316', color: '#fff',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontWeight: 800, fontSize: 14, flexShrink: 0
-                  }}>
-                    {user.name?.charAt(0).toUpperCase()}
-                  </div>
-                  <span style={{ fontWeight: 700, fontSize: 14, color: '#9d4300' }}>
-                    {user.name?.split(' ')[0]}
-                  </span>
-                  <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#8c7164' }}>
-                    expand_more
-                  </span>
-                </button>
-
-                {/* Dropdown */}
-                <div className="group-hover:block hidden" style={{
-                  position: 'absolute', right: 0, top: 'calc(100% + 8px)',
-                  background: '#fff', border: '1px solid #e0d9cc',
-                  borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-                  minWidth: 190, zIndex: 200, overflow: 'hidden'
-                }}>
-                  <div style={{ padding: '12px 16px 8px', borderBottom: '1px solid #f0e8e0' }}>
-                    <p style={{ fontWeight: 700, fontSize: 13, color: '#1f1b17', margin: 0 }}>{user.name}</p>
-                    <p style={{ fontSize: 11, color: '#8c7164', margin: '2px 0 0' }}>{user.email}</p>
-                  </div>
-                  <Link to="/dashboard" style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '11px 16px', color: '#1f1b17', textDecoration: 'none',
-                    fontSize: 13, fontWeight: 600, background: '#fff'
-                  }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#fff8f4'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#f97316' }}>dashboard</span>
-                    My Dashboard
-                  </Link>
-                  <Link to="/chat" style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '11px 16px', color: '#1f1b17', textDecoration: 'none',
-                    fontSize: 13, fontWeight: 600, background: '#fff'
-                  }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#fff8f4'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#f97316' }}>chat_bubble</span>
-                    Chat
-                  </Link>
-                  <div style={{ borderTop: '1px solid #f0e8e0' }} />
-                  <button onClick={logout} style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '11px 16px', color: '#ba1a1a', background: '#fff',
-                    border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-                    fontFamily: 'Manrope', textAlign: 'left'
-                  }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#fff0f0'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>logout</span>
-                    Sign Out
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <Link to="/login" style={{
-                padding: '9px 26px', borderRadius: 999, fontSize: 14,
-                fontWeight: 700, color: '#fff', background: '#f97316',
-                textDecoration: 'none', display: 'inline-block'
-              }}>
-                Sign In
-              </Link>
-            )}
-          </div>
-        </div>
-      </nav>
+      {/* ── Navbar (shared component — identical before/after login) ── */}
+      <Navbar />
 
       {/* ── Hero ── */}
       <section style={{ position: 'relative', padding: '64px 24px 96px', overflow: 'hidden' }}>
