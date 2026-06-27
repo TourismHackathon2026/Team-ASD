@@ -9,16 +9,21 @@ import Heritage from './pages/Heritage';
 import Safety from './pages/Safety';
 import MapPage from './pages/Map';
 import Dashboard from './pages/Dashboard';
-import AdminLogin from './pages/AdminLogin';
-import AdminDashboard from './pages/AdminDashboard.jsx';
+import AdminDashboard from './pages/AdminDashboard';
 
 function PrivateRoute({ children }) {
-  // Remove the token check temporarily for demo — restore when backend is live
+  if (!localStorage.getItem('token')) {
+    return <Navigate to="/login" state={{ message: 'Please sign in first to access this page.' }} />;
+  }
   return children;
 }
+
 function AdminRoute({ children }) {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  return localStorage.getItem('token') && user.isAdmin ? children : <Navigate to="/admin/login" />;
+  if (!localStorage.getItem('token') || !user.isAdmin) {
+    return <Navigate to="/login" />;
+  }
+  return children;
 }
 
 export default function App() {
@@ -37,7 +42,6 @@ export default function App() {
         <Route path="/safety" element={<PrivateRoute><Safety /></PrivateRoute>} />
         <Route path="/map" element={<PrivateRoute><MapPage /></PrivateRoute>} />
         <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-        <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
       </Routes>
     </BrowserRouter>
