@@ -17,7 +17,11 @@ const emergencyContacts = {
 };
 
 router.get('/contacts', (req, res) => {
-  res.json(emergencyContacts);
+  const contactsArray = Object.entries(emergencyContacts).map(([district, info]) => ({
+    district,
+    ...info
+  }));
+  res.json(contactsArray);
 });
 
 router.get('/contacts/:district', (req, res) => {

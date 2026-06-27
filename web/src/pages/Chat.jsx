@@ -180,7 +180,7 @@ export default function Chat() {
             onMouseEnter={e => e.currentTarget.style.background = '#fff0f0'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>logout</span>
-            Sign Out
+            Exit
           </button>
         </div>
       </aside>
