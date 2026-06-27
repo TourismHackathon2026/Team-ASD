@@ -15,8 +15,6 @@ function now() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-// ── LocalStorage helpers ──────────────────────────────────────────────────────
-
 const HISTORY_KEY = 'aipugyo_chat_history';
 
 function loadHistory() {
@@ -25,32 +23,18 @@ function loadHistory() {
 }
 
 function saveHistory(list) {
-  // keep at most 20 sessions
   localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, 20)));
 }
 
-// A "session" stored in history looks like:
-// {
-//   id:       "chat_1719481234567",   ← unique key
-//   title:    "Best time to visit…",  ← first user message (truncated)
-//   messages: [ { role, content, time }, … ],
-//   updatedAt: 1719481234567
-// }
-
-// ─────────────────────────────────────────────────────────────────────────────
-
 const INITIAL_GREETING = {
   role: 'assistant',
-  content:
-    'नमस्ते! I am AI Pugyo 🏔️ — your Nepal expert. Ask me anything in English or Nepali about trails, culture, heritage, visas, or emergencies.',
+  content: 'नमस्ते! I am AI Pugyo 🏔️ — your Nepal expert. Ask me anything in English or Nepali about trails, culture, heritage, visas, or emergencies.',
   time: now(),
 };
 
 export default function Chat() {
-  const user       = JSON.parse(localStorage.getItem('user') || '{}');
-  const navigate   = useNavigate();
-
-  // ── State ──────────────────────────────────────────────────────────────────
+  const user         = JSON.parse(localStorage.getItem('user') || '{}');
+  const navigate     = useNavigate();
 
   const [messages,     setMessages]     = useState([INITIAL_GREETING]);
   const [input,        setInput]        = useState('');
@@ -58,65 +42,50 @@ export default function Chat() {
   const [recording,    setRecording]    = useState(false);
   const [imageFile,    setImageFile]    = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-
-  // history  – array of session objects persisted in localStorage
   const [history,      setHistory]      = useState(loadHistory);
-
-  // activeChatId
-  //   null           → brand-new chat (not yet in history)
-  //   "chat_<ts>"    → the session currently loaded from / being saved to history
   const [activeChatId, setActiveChatId] = useState(null);
-
-  // ── Refs ───────────────────────────────────────────────────────────────────
 
   const bottomRef = useRef(null);
   const fileRef   = useRef(null);
   const recRef    = useRef(null);
 
-  // ── Effects ────────────────────────────────────────────────────────────────
-
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // Auto-persist whenever messages change and there's at least one user message
+  useEffect(() => {
+    const firstUserMsg = messages.find(m => m.role === 'user');
+    if (!firstUserMsg) return;
+    const id = activeChatId || `chat_${Date.now()}`;
+    if (!activeChatId) setActiveChatId(id);
+    const title = firstUserMsg.content.length > 40
+      ? firstUserMsg.content.slice(0, 40) + '…'
+      : firstUserMsg.content;
+    setHistory(prev => {
+      const next = [
+        { id, title, messages, updatedAt: Date.now() },
+        ...prev.filter(h => h.id !== id),
+      ];
+      saveHistory(next);
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
 
   function addMsg(role, content) {
     setMessages(prev => [...prev, { role, content, time: now() }]);
   }
 
-  /**
-   * Persist the current conversation to localStorage.
-   * - If activeChatId is set, update the existing session.
-   * - If null, create a new session and set activeChatId.
-   */
-  function persistSession(newMessages, currentId) {
-    const allSessions = loadHistory();
-
-    if (currentId) {
-      // Update existing session
-      const updated = allSessions.map(s =>
-        s.id === currentId
-          ? { ...s, messages: newMessages, updatedAt: Date.now() }
-          : s
-      );
-      saveHistory(updated);
-      setHistory(updated);
-    } else {
-      // Create a brand-new session
-      const id    = `chat_${Date.now()}`;
-      const title = newMessages.find(m => m.role === 'user')?.content?.slice(0, 50) || 'New chat';
-      const fresh = { id, title, messages: newMessages, updatedAt: Date.now() };
-      const next  = [fresh, ...allSessions];
-      saveHistory(next);
-      setHistory(next);
-      setActiveChatId(id);   // ← this is what activeChatId is for
-      return id;             // return so the caller can use it immediately
-    }
-    return currentId;
+  function loadChat(id) {
+    const entry = history.find(h => h.id === id);
+    if (!entry) return;
+    setMessages(entry.messages);
+    setActiveChatId(id);
+    setInput('');
+    setImageFile(null);
+    setImagePreview(null);
   }
-
-  // ── Send message ───────────────────────────────────────────────────────────
 
   async function send(text) {
     const msg = text || input.trim();
@@ -124,19 +93,15 @@ export default function Chat() {
     if (imageFile) { await sendImage(); return; }
 
     setInput('');
-    const userMsg  = { role: 'user', content: msg, time: now() };
-    const nextMsgs = [...messages, userMsg];
+    const userMsg   = { role: 'user', content: msg, time: now() };
+    const nextMsgs  = [...messages, userMsg];
     setMessages(nextMsgs);
     setLoading(true);
 
     try {
       const { data } = await api.post('/ai/chat', { message: msg, userId: user._id });
       const aiMsg    = { role: 'assistant', content: data.reply, time: now() };
-      const finalMsgs = [...nextMsgs, aiMsg];
-      setMessages(finalMsgs);
-
-      // Save / update in localStorage — pass activeChatId so we know which branch to take
-      persistSession(finalMsgs, activeChatId);
+      setMessages([...nextMsgs, aiMsg]);
     } catch {
       addMsg('assistant', 'Sorry, I could not connect. Please check backend is running.');
     } finally {
@@ -144,11 +109,9 @@ export default function Chat() {
     }
   }
 
-  // ── Send image ─────────────────────────────────────────────────────────────
-
   async function sendImage() {
-    const userMsg   = { role: 'user', content: '📷 Identifying this image…', time: now() };
-    const nextMsgs  = [...messages, userMsg];
+    const userMsg  = { role: 'user', content: '📷 Identifying this image…', time: now() };
+    const nextMsgs = [...messages, userMsg];
     setMessages(nextMsgs);
     setLoading(true);
 
@@ -156,13 +119,11 @@ export default function Chat() {
     fd.append('image', imageFile);
 
     try {
-      const { data }  = await api.post('/ai/image', fd, {
+      const { data } = await api.post('/ai/image', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      const aiMsg     = { role: 'assistant', content: data.description, time: now() };
-      const finalMsgs = [...nextMsgs, aiMsg];
-      setMessages(finalMsgs);
-      persistSession(finalMsgs, activeChatId);
+      const aiMsg = { role: 'assistant', content: data.description, time: now() };
+      setMessages([...nextMsgs, aiMsg]);
     } catch {
       addMsg('assistant', 'Could not identify image. Please try again.');
     } finally {
@@ -172,17 +133,14 @@ export default function Chat() {
     }
   }
 
-  // ── Voice ──────────────────────────────────────────────────────────────────
-
   function toggleVoice() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { toast.error('Voice not supported in this browser'); return; }
     if (recording) { recRef.current?.stop(); setRecording(false); return; }
-
     const r = new SR();
-    r.lang          = 'en-US';
+    r.lang           = 'en-US';
     r.interimResults = false;
-    r.onresult = e  => { setInput(e.results[0][0].transcript); setRecording(false); };
+    r.onresult = e   => { setInput(e.results[0][0].transcript); setRecording(false); };
     r.onerror  = ()  => setRecording(false);
     r.onend    = ()  => setRecording(false);
     r.start();
@@ -190,7 +148,10 @@ export default function Chat() {
     setRecording(true);
   }
 
-  // ── Navigation ─────────────────────────────────────────────────────────────
+  // ── Goes HOME (not logout) ─────────────────────────────────────────────────
+  function goHome() {
+    navigate('/');
+  }
 
   function logout() {
     localStorage.removeItem('token');
@@ -198,28 +159,13 @@ export default function Chat() {
     navigate('/');
   }
 
-  /** Start a completely fresh chat. */
   function startNewChat() {
     setMessages([{ ...INITIAL_GREETING, time: now() }]);
-    setActiveChatId(null);   // ← reset: next send() will create a new session
+    setActiveChatId(null);
     setInput('');
     setImageFile(null);
     setImagePreview(null);
   }
-
-  /**
-   * Load an old session from the sidebar.
-   * Sets activeChatId so future send() calls update THAT session, not a new one.
-   */
-  function loadSession(session) {
-    setMessages(session.messages);
-    setActiveChatId(session.id);   // ← activeChatId now points to the loaded session
-    setInput('');
-    setImageFile(null);
-    setImagePreview(null);
-  }
-
-  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div style={{
@@ -240,20 +186,18 @@ export default function Chat() {
             <img src="/logo.png" alt="AI Pugyo" style={{ height: 38, width: 'auto' }} />
             <span style={{ fontWeight: 800, fontSize: 16, color: '#9d4300' }}>AI Pugyo</span>
           </Link>
-          <button
-            onClick={startNewChat}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 8, padding: '10px 16px', borderRadius: 999,
-              background: '#f97316', color: '#fff', fontWeight: 700,
-              fontSize: 14, border: 'none', cursor: 'pointer', fontFamily: 'Manrope',
-            }}>
+          <button onClick={startNewChat} style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: 8, padding: '10px 16px', borderRadius: 999,
+            background: '#f97316', color: '#fff', fontWeight: 700,
+            fontSize: 14, border: 'none', cursor: 'pointer', fontFamily: 'Manrope',
+          }}>
             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
             Start Chat
           </button>
         </div>
 
-        {/* Recent sessions from localStorage */}
+        {/* Recent chats */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 10px' }}>
           <p style={{
             fontSize: 11, fontWeight: 700, color: '#8c7164',
@@ -262,38 +206,45 @@ export default function Chat() {
           }}>Recent Explorations</p>
 
           {history.length === 0 && (
-            <p style={{ fontSize: 12, color: '#bbb', padding: '4px 12px' }}>
-              No chats yet — start one!
+            <p style={{ padding: '4px 10px', fontSize: 12, color: '#8c7164' }}>
+              Your conversations will appear here.
             </p>
           )}
 
-          {history.map(session => (
-            <button
-              key={session.id}
-              onClick={() => loadSession(session)}
-              style={{
-                width: '100%', textAlign: 'left', padding: '10px 12px',
-                borderRadius: 10, marginBottom: 2,
-                background: activeChatId === session.id ? '#fff8f4' : 'transparent',
-                border: activeChatId === session.id ? '1px solid #f97316' : '1px solid transparent',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-                color: '#584237', fontSize: 13, fontFamily: 'Manrope',
-              }}
-              onMouseEnter={e => { if (activeChatId !== session.id) e.currentTarget.style.background = '#fff8f4'; }}
-              onMouseLeave={e => { if (activeChatId !== session.id) e.currentTarget.style.background = 'transparent'; }}
+          {history.map(h => (
+            <button key={h.id} onClick={() => loadChat(h.id)} style={{
+              width: '100%', textAlign: 'left', padding: '10px 12px',
+              borderRadius: 10, marginBottom: 2,
+              background: activeChatId === h.id ? '#fff8f4' : 'transparent',
+              border: activeChatId === h.id ? '1px solid #f97316' : '1px solid transparent',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+              color: activeChatId === h.id ? '#9d4300' : '#584237',
+              fontSize: 13, fontFamily: 'Manrope',
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = '#fff8f4'}
+              onMouseLeave={e => e.currentTarget.style.background = activeChatId === h.id ? '#fff8f4' : 'transparent'}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#f97316', flexShrink: 0 }}>
-                chat_bubble
-              </span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {session.title}
-              </span>
+              <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#f97316', flexShrink: 0 }}>chat_bubble</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.title}</span>
             </button>
           ))}
         </div>
 
         {/* Bottom links */}
         <div style={{ padding: '12px 10px', borderTop: '1px solid #e0d9cc' }}>
+          {/* Home — navigates to landing without logging out */}
+          <button onClick={goHome} style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+            padding: '10px 12px', borderRadius: 10, color: '#584237',
+            fontSize: 13, background: 'transparent', border: 'none',
+            cursor: 'pointer', fontFamily: 'Manrope', marginBottom: 2,
+          }}
+            onMouseEnter={e => e.currentTarget.style.background = '#fff8f4'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>home</span>
+            Home
+          </button>
+
           <Link to="/dashboard" style={{
             display: 'flex', alignItems: 'center', gap: 8,
             padding: '10px 12px', borderRadius: 10, color: '#584237',
@@ -304,6 +255,8 @@ export default function Chat() {
             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>person</span>
             Dashboard
           </Link>
+
+          {/* Sign Out — clears auth and redirects home */}
           <button onClick={logout} style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 8,
             padding: '10px 12px', borderRadius: 10, color: '#ba1a1a',
@@ -313,7 +266,7 @@ export default function Chat() {
             onMouseEnter={e => e.currentTarget.style.background = '#fff0f0'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>logout</span>
-            Exit
+            Sign Out
           </button>
         </div>
       </aside>
@@ -348,12 +301,11 @@ export default function Chat() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
               <div style={{
                 width: 36, height: 36, borderRadius: '50%',
-                background: '#f97316', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', flexShrink: 0,
+                background: '#fff', border: '1px solid #e0d9cc',
+                display: 'flex', alignItems: 'center',
+                justifyContent: 'center', flexShrink: 0, overflow: 'hidden',
               }}>
-                <span className="material-symbols-outlined" style={{
-                  fontSize: 18, color: '#fff', fontVariationSettings: "'FILL' 1",
-                }}>travel_explore</span>
+                <img src="/logo.png" alt="AI Pugyo" style={{ width: '70%', height: '70%', objectFit: 'contain' }} />
               </div>
               <div style={{
                 padding: '12px 16px', borderRadius: '18px 18px 18px 4px',
@@ -373,7 +325,7 @@ export default function Chat() {
           <div ref={bottomRef} />
         </div>
 
-        {/* Quick suggestions (only on first message of a fresh chat) */}
+        {/* Quick suggestions — only on fresh chat */}
         {messages.length === 1 && (
           <div style={{ padding: '0 16px 12px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {suggestions.map(s => (
@@ -419,7 +371,6 @@ export default function Chat() {
             display: 'flex', alignItems: 'center', gap: 8,
             maxWidth: 800, margin: '0 auto',
           }}>
-            {/* Hidden file input */}
             <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
               onChange={e => {
                 const f = e.target.files[0];

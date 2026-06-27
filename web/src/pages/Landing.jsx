@@ -23,7 +23,6 @@ export default function Landing() {
   return (
     <div style={{ background: '#fff8f4', color: '#1f1b17', fontFamily: 'Manrope, sans-serif' }}>
 
-      {/* ── Navbar (shared component — identical before/after login) ── */}
       <Navbar />
 
       {/* ── Hero ── */}
@@ -146,10 +145,11 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── Banner ── */}
+      {/* ── Banner — Chitwan National Park 4K ── */}
       <section style={{ position: 'relative', height: 400, overflow: 'hidden' }}>
         <div style={{
-          position: 'absolute', inset: 0, backgroundImage: `url('https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1600&q=100')`,
+          position: 'absolute', inset: 0,
+          backgroundImage: `url('https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=3840&q=100')`,
           backgroundSize: 'cover', backgroundPosition: 'center'
         }} />
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(31,27,23,0.55)' }} />
@@ -158,6 +158,13 @@ export default function Landing() {
           display: 'flex', flexDirection: 'column', alignItems: 'center',
           justifyContent: 'center', textAlign: 'center', padding: '0 24px'
         }}>
+          <span style={{
+            display: 'inline-block', marginBottom: 12, padding: '4px 14px',
+            borderRadius: 999, background: 'rgba(249,115,22,0.85)',
+            fontSize: 12, fontWeight: 700, color: '#fff', letterSpacing: '0.06em', textTransform: 'uppercase'
+          }}>
+            Chitwan National Park
+          </span>
           <h2 style={{ fontSize: 42, fontWeight: 800, color: '#fff', margin: '0 0 16px' }}>
             Explore Every Corner
           </h2>
