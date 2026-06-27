@@ -2,6 +2,7 @@ import express from 'express';
 import axios from 'axios';
 import multer from 'multer';
 import fs from 'fs';
+import Groq from 'groq-sdk';
 import ChatHistory from '../models/ChatHistory.js';
 
 const router = express.Router();
@@ -14,18 +15,19 @@ const SYSTEM_PROMPT = `You are AI Pugyo (AI पुग्यो), an expert virtu
 router.post('/chat', async (req, res) => {
   try {
     const { message, userId } = req.body;
-    const response = await axios.post(
-      `${GEMINI_URL}?key=${process.env.GEMINI_API_KEY}`,
-      {
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ role: 'user', parts: [{ text: message }] }]
-      }
-    );
-    const reply = response.data.candidates[0].content.parts[0].text;
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: message }
+      ],
+    });
+    const reply = completion.choices[0].message.content;
     if (userId) await ChatHistory.create({ userId, message, reply });
     res.json({ reply });
   } catch (err) {
-    res.status(500).json({ message: 'Gemini error', error: err.message });
+    res.status(500).json({ message: 'AI error', error: err.message });
   }
 });
 
@@ -55,10 +57,15 @@ router.post('/image', upload.single('image'), async (req, res) => {
         }]
       }
     );
-    fs.unlinkSync(req.file.path);
     const description = response.data.candidates[0].content.parts[0].text;
     res.json({ description });
   } catch (err) {
+    const code = err.response?.data?.error?.code;
+    if (code === 429) {
+      return res.json({
+        description: "Image recognition is busy right now. Please try again in a moment."
+      });
+    }
     res.status(500).json({ message: 'Image recognition failed', error: err.message });
   } finally {
     if (req.file?.path && fs.existsSync(req.file.path)) {
@@ -80,6 +87,12 @@ router.post('/itinerary', async (req, res) => {
     const itinerary = JSON.parse(clean);
     res.json({ itinerary });
   } catch (err) {
+    const code = err.response?.data?.error?.code;
+    if (code === 429) {
+      return res.status(429).json({
+        message: "AI is busy right now. Please wait a moment and try again."
+      });
+    }
     res.status(500).json({ message: 'Itinerary generation failed', error: err.message });
   }
 });
