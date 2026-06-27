@@ -149,7 +149,7 @@ export default function Landing() {
       <section style={{ position: 'relative', height: 400, overflow: 'hidden' }}>
         <div style={{
           position: 'absolute', inset: 0,
-          backgroundImage: `url('https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=3840&q=100')`,
+          backgroundImage: `url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTixQfIWS38WccmiixUtMxTgZdUBVhCaah29W7zUjwS-w&s=10')`,
           backgroundSize: 'cover', backgroundPosition: 'center'
         }} />
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(31,27,23,0.55)' }} />
@@ -185,41 +185,17 @@ export default function Landing() {
       </section>
 
       {/* ── Footer ── */}
-      <footer style={{ background: '#f5ece6', borderTop: '1px solid rgba(224,217,204,0.3)' }}>
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20,
-          padding: '48px 24px', maxWidth: 1280, margin: '0 auto'
-        }} className="grid-cols-1 md:grid-cols-4">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <img src="/logo.png" alt="AI Pugyo" style={{ height: 48, width: 'auto', objectFit: 'contain', objectPosition: 'left' }} />
-            <p style={{ fontSize: 12, color: '#584237', margin: 0, lineHeight: '20px' }}>
-              Empowering tourism in Nepal with Heritage-Modern AI technology.
-            </p>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <h4 style={{ fontWeight: 700, color: '#1f1b17', margin: '0 0 8px', fontSize: 14 }}>Platform</h4>
-            <Link to="/" style={{ fontSize: 13, color: '#584237', textDecoration: 'none' }}>Home</Link>
-            <button onClick={() => guardedNavigate('/chat', 'Chat')} style={{ fontSize: 13, color: '#584237', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'Manrope' }}>Chat Assistant</button>
-            <button onClick={() => guardedNavigate('/planner', 'Planner')} style={{ fontSize: 13, color: '#584237', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'Manrope' }}>Trek Planner</button>
-            <button onClick={() => guardedNavigate('/heritage', 'Explorer')} style={{ fontSize: 13, color: '#584237', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'Manrope' }}>Heritage Explorer</button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <h4 style={{ fontWeight: 700, color: '#1f1b17', margin: '0 0 8px', fontSize: 14 }}>Quick Links</h4>
-            <button onClick={() => guardedNavigate('/map', 'Map')} style={{ fontSize: 13, color: '#584237', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'Manrope' }}>Explorer Map</button>
-            <button onClick={() => guardedNavigate('/safety', 'Safety')} style={{ fontSize: 13, color: '#584237', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'Manrope' }}>Safety & Alerts</button>
-            <button onClick={() => guardedNavigate('/dashboard', 'Dashboard')} style={{ fontSize: 13, color: '#584237', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'Manrope' }}>My Dashboard</button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <h4 style={{ fontWeight: 700, color: '#1f1b17', margin: '0 0 8px', fontSize: 14 }}>Hackathon Project</h4>
-            <p style={{ fontSize: 12, color: '#584237', margin: 0, lineHeight: '20px' }}>
-              Created by Team ADS (Aayush, Dikshant, Shishir) for the Bagmati Province Tourism Hackathon 2083.
-            </p>
-          </div>
-        </div>
-        <div style={{ textAlign: 'center', padding: '16px 24px', borderTop: '1px solid rgba(224,217,204,0.3)' }}>
-          <p style={{ fontSize: 12, color: '#8c7164', margin: 0 }}>© 2083 AI Pugyo — Nepal's AI Tourist Assistant</p>
-        </div>
-      </footer>
+
+<footer style={{ background: '#f5ece6', borderTop: '1px solid rgba(224,217,204,0.3)' }}>
+  <div style={{
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '20px 32px', maxWidth: 1280, margin: '0 auto'
+  }}>
+    <img src="/logo.png" alt="AI Pugyo" style={{ height: 40, width: 'auto', objectFit: 'contain' }} />
+    <p style={{ fontSize: 12, color: '#8c7164', margin: 0 }}>© 2083 AI Pugyo — Nepal's AI Tourist Assistant</p>
+    <p style={{ fontSize: 12, color: '#584237', margin: 0, fontWeight: 600 }}>Made by Team ADS</p>
+  </div>
+</footer>
 
       {/* ── Floating chat button ── */}
       <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 50 }}>

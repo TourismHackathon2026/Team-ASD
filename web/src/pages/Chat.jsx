@@ -15,15 +15,15 @@ function now() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-const HISTORY_KEY = 'aipugyo_chat_history';
+const DB_HISTORY_KEY = 'aipugyo_chat_sessions';
 
-function loadHistory() {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+function loadSessions() {
+  try { return JSON.parse(localStorage.getItem(DB_HISTORY_KEY) || '[]'); }
   catch { return []; }
 }
 
-function saveHistory(list) {
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, 20)));
+function saveSessions(list) {
+  localStorage.setItem(DB_HISTORY_KEY, JSON.stringify(list.slice(0, 30)));
 }
 
 const INITIAL_GREETING = {
@@ -33,8 +33,8 @@ const INITIAL_GREETING = {
 };
 
 export default function Chat() {
-  const user         = JSON.parse(localStorage.getItem('user') || '{}');
-  const navigate     = useNavigate();
+  const user     = JSON.parse(localStorage.getItem('user') || '{}');
+  const navigate = useNavigate();
 
   const [messages,     setMessages]     = useState([INITIAL_GREETING]);
   const [input,        setInput]        = useState('');
@@ -42,8 +42,8 @@ export default function Chat() {
   const [recording,    setRecording]    = useState(false);
   const [imageFile,    setImageFile]    = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-  const [history,      setHistory]      = useState(loadHistory);
-  const [activeChatId, setActiveChatId] = useState(null);
+  const [sessions,     setSessions]     = useState(loadSessions);
+  const [sessionId,    setSessionId]    = useState(null);
 
   const bottomRef = useRef(null);
   const fileRef   = useRef(null);
@@ -53,38 +53,56 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Auto-persist whenever messages change and there's at least one user message
+  // Auto-save session whenever messages change (if there's user content)
   useEffect(() => {
-    const firstUserMsg = messages.find(m => m.role === 'user');
-    if (!firstUserMsg) return;
-    const id = activeChatId || `chat_${Date.now()}`;
-    if (!activeChatId) setActiveChatId(id);
-    const title = firstUserMsg.content.length > 40
-      ? firstUserMsg.content.slice(0, 40) + '…'
-      : firstUserMsg.content;
-    setHistory(prev => {
+    const firstUser = messages.find(m => m.role === 'user');
+    if (!firstUser) return;
+    const id = sessionId || `chat_${Date.now()}`;
+    if (!sessionId) setSessionId(id);
+    const title = firstUser.content.length > 40
+      ? firstUser.content.slice(0, 40) + '…'
+      : firstUser.content;
+    setSessions(prev => {
       const next = [
         { id, title, messages, updatedAt: Date.now() },
-        ...prev.filter(h => h.id !== id),
+        ...prev.filter(s => s.id !== id),
       ];
-      saveHistory(next);
+      saveSessions(next);
       return next;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
-  function addMsg(role, content) {
-    setMessages(prev => [...prev, { role, content, time: now() }]);
-  }
-
-  function loadChat(id) {
-    const entry = history.find(h => h.id === id);
-    if (!entry) return;
-    setMessages(entry.messages);
-    setActiveChatId(id);
+  function loadSession(id) {
+    const s = sessions.find(s => s.id === id);
+    if (!s) return;
+    setMessages(s.messages);
+    setSessionId(id);
     setInput('');
     setImageFile(null);
     setImagePreview(null);
+  }
+
+  function deleteSession(e, id) {
+    e.stopPropagation();
+    setSessions(prev => {
+      const next = prev.filter(s => s.id !== id);
+      saveSessions(next);
+      return next;
+    });
+    if (sessionId === id) startNewChat();
+  }
+
+  // Build history for multi-turn context (last 6 turns from current session)
+  function buildHistory() {
+    const turns = messages.filter(m => m.role !== 'assistant' || messages.indexOf(m) > 0);
+    const pairs = [];
+    for (let i = 1; i < turns.length - 1; i += 2) {
+      if (turns[i] && turns[i + 1]) {
+        pairs.push({ message: turns[i].content, reply: turns[i + 1].content });
+      }
+    }
+    return pairs.slice(-6); // last 6 exchanges for context
   }
 
   async function send(text) {
@@ -93,17 +111,22 @@ export default function Chat() {
     if (imageFile) { await sendImage(); return; }
 
     setInput('');
-    const userMsg   = { role: 'user', content: msg, time: now() };
-    const nextMsgs  = [...messages, userMsg];
+    const userMsg  = { role: 'user', content: msg, time: now() };
+    const nextMsgs = [...messages, userMsg];
     setMessages(nextMsgs);
     setLoading(true);
 
     try {
-      const { data } = await api.post('/ai/chat', { message: msg, userId: user._id });
-      const aiMsg    = { role: 'assistant', content: data.reply, time: now() };
-      setMessages([...nextMsgs, aiMsg]);
+      const history = buildHistory();
+      const { data } = await api.post('/ai/chat', {
+        message: msg,
+        userId: user._id,
+        sessionId,
+        history,
+      });
+      setMessages([...nextMsgs, { role: 'assistant', content: data.reply, time: now() }]);
     } catch {
-      addMsg('assistant', 'Sorry, I could not connect. Please check backend is running.');
+      setMessages([...nextMsgs, { role: 'assistant', content: 'Sorry, could not connect. Please check backend is running.', time: now() }]);
     } finally {
       setLoading(false);
     }
@@ -122,10 +145,9 @@ export default function Chat() {
       const { data } = await api.post('/ai/image', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      const aiMsg = { role: 'assistant', content: data.description, time: now() };
-      setMessages([...nextMsgs, aiMsg]);
+      setMessages([...nextMsgs, { role: 'assistant', content: data.description, time: now() }]);
     } catch {
-      addMsg('assistant', 'Could not identify image. Please try again.');
+      setMessages([...nextMsgs, { role: 'assistant', content: 'Could not identify image. Please try again.', time: now() }]);
     } finally {
       setLoading(false);
       setImageFile(null);
@@ -138,30 +160,25 @@ export default function Chat() {
     if (!SR) { toast.error('Voice not supported in this browser'); return; }
     if (recording) { recRef.current?.stop(); setRecording(false); return; }
     const r = new SR();
-    r.lang           = 'en-US';
+    r.lang           = 'ne-NP'; // Nepali first, falls back to English
     r.interimResults = false;
-    r.onresult = e   => { setInput(e.results[0][0].transcript); setRecording(false); };
-    r.onerror  = ()  => setRecording(false);
-    r.onend    = ()  => setRecording(false);
+    r.onresult = e  => {
+      const t = e.results[0][0].transcript;
+      setInput(t);
+      setRecording(false);
+      toast.success('Voice captured! Press Send to ask.');
+    };
+    r.onerror  = () => setRecording(false);
+    r.onend    = () => setRecording(false);
     r.start();
     recRef.current = r;
     setRecording(true);
-  }
-
-  // ── Goes HOME (not logout) ─────────────────────────────────────────────────
-  function goHome() {
-    navigate('/');
-  }
-
-  function logout() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/');
+    toast('Listening… speak now 🎙️', { icon: '🎙️' });
   }
 
   function startNewChat() {
     setMessages([{ ...INITIAL_GREETING, time: now() }]);
-    setActiveChatId(null);
+    setSessionId(null);
     setInput('');
     setImageFile(null);
     setImagePreview(null);
@@ -193,47 +210,52 @@ export default function Chat() {
             fontSize: 14, border: 'none', cursor: 'pointer', fontFamily: 'Manrope',
           }}>
             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
-            Start Chat
+            New Chat
           </button>
         </div>
 
-        {/* Recent chats */}
+        {/* Recent sessions */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 10px' }}>
           <p style={{
             fontSize: 11, fontWeight: 700, color: '#8c7164',
             textTransform: 'uppercase', letterSpacing: '0.08em',
             padding: '4px 10px 8px',
-          }}>Recent Explorations</p>
+          }}>Recent Chats</p>
 
-          {history.length === 0 && (
+          {sessions.length === 0 && (
             <p style={{ padding: '4px 10px', fontSize: 12, color: '#8c7164' }}>
               Your conversations will appear here.
             </p>
           )}
 
-          {history.map(h => (
-            <button key={h.id} onClick={() => loadChat(h.id)} style={{
-              width: '100%', textAlign: 'left', padding: '10px 12px',
-              borderRadius: 10, marginBottom: 2,
-              background: activeChatId === h.id ? '#fff8f4' : 'transparent',
-              border: activeChatId === h.id ? '1px solid #f97316' : '1px solid transparent',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-              color: activeChatId === h.id ? '#9d4300' : '#584237',
-              fontSize: 13, fontFamily: 'Manrope',
-            }}
-              onMouseEnter={e => e.currentTarget.style.background = '#fff8f4'}
-              onMouseLeave={e => e.currentTarget.style.background = activeChatId === h.id ? '#fff8f4' : 'transparent'}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#f97316', flexShrink: 0 }}>chat_bubble</span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.title}</span>
-            </button>
+          {sessions.map(s => (
+            <div key={s.id} style={{ position: 'relative', marginBottom: 2 }}>
+              <button onClick={() => loadSession(s.id)} style={{
+                width: '100%', textAlign: 'left', padding: '10px 36px 10px 12px',
+                borderRadius: 10,
+                background: sessionId === s.id ? '#fff8f4' : 'transparent',
+                border: sessionId === s.id ? '1px solid #f97316' : '1px solid transparent',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                color: sessionId === s.id ? '#9d4300' : '#584237',
+                fontSize: 13, fontFamily: 'Manrope',
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#f97316', flexShrink: 0 }}>chat_bubble</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</span>
+              </button>
+              <button onClick={e => deleteSession(e, s.id)} style={{
+                position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: '#8c7164', padding: 2, display: 'flex', alignItems: 'center',
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
+              </button>
+            </div>
           ))}
         </div>
 
-        {/* Bottom links */}
+        {/* Bottom nav — Home and Dashboard ONLY, no Sign Out */}
         <div style={{ padding: '12px 10px', borderTop: '1px solid #e0d9cc' }}>
-          {/* Home — navigates to landing without logging out */}
-          <button onClick={goHome} style={{
+          <button onClick={() => navigate('/')} style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 8,
             padding: '10px 12px', borderRadius: 10, color: '#584237',
             fontSize: 13, background: 'transparent', border: 'none',
@@ -245,28 +267,16 @@ export default function Chat() {
             Home
           </button>
 
-          <Link to="/dashboard" style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '10px 12px', borderRadius: 10, color: '#584237',
-            fontSize: 13, textDecoration: 'none', marginBottom: 2,
-          }}
-            onMouseEnter={e => e.currentTarget.style.background = '#fff8f4'}
-            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>person</span>
-            Dashboard
-          </Link>
-
-          {/* Sign Out — clears auth and redirects home */}
-          <button onClick={logout} style={{
+          <button onClick={() => navigate('/dashboard')} style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-            padding: '10px 12px', borderRadius: 10, color: '#ba1a1a',
+            padding: '10px 12px', borderRadius: 10, color: '#584237',
             fontSize: 13, background: 'transparent', border: 'none',
             cursor: 'pointer', fontFamily: 'Manrope',
           }}
-            onMouseEnter={e => e.currentTarget.style.background = '#fff0f0'}
+            onMouseEnter={e => e.currentTarget.style.background = '#fff8f4'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>logout</span>
-            Sign Out
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>dashboard</span>
+            Dashboard
           </button>
         </div>
       </aside>
@@ -283,7 +293,7 @@ export default function Chat() {
           <div>
             <h1 style={{ fontWeight: 700, fontSize: 15, color: '#1f1b17', margin: 0 }}>AI Pugyo Chat</h1>
             <p style={{ fontSize: 12, color: '#8c7164', margin: 0 }}>
-              Your Nepal travel expert • Replies in English &amp; Nepali
+              Your Nepal travel expert • Replies in English &amp; Nepali • Multi-turn memory enabled
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -296,7 +306,6 @@ export default function Chat() {
         <div style={{ flex: 1, overflowY: 'auto', padding: '24px 16px' }}>
           {messages.map((m, i) => <ChatBubble key={i} message={m} />)}
 
-          {/* Typing indicator */}
           {loading && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
               <div style={{
@@ -359,6 +368,7 @@ export default function Chat() {
                 alignItems: 'center', justifyContent: 'center',
               }}>✕</button>
             </div>
+            <p style={{ fontSize: 11, color: '#8c7164', marginTop: 4 }}>Image ready — press Send to identify</p>
           </div>
         )}
 
@@ -378,10 +388,11 @@ export default function Chat() {
                 setImageFile(f);
                 setImagePreview(URL.createObjectURL(f));
                 toast('Image ready — press Send to identify it 🏛️');
+                e.target.value = '';
               }} />
 
             {/* Image button */}
-            <button onClick={() => fileRef.current?.click()} style={{
+            <button onClick={() => fileRef.current?.click()} title="Upload image to identify" style={{
               padding: 10, borderRadius: 10, background: 'transparent',
               border: 'none', cursor: 'pointer', color: '#8c7164',
               display: 'flex', alignItems: 'center',
@@ -392,7 +403,7 @@ export default function Chat() {
             </button>
 
             {/* Mic button */}
-            <button onClick={toggleVoice} style={{
+            <button onClick={toggleVoice} title={recording ? 'Stop recording' : 'Voice input (English/Nepali)'} style={{
               padding: 10, borderRadius: 10, border: 'none', cursor: 'pointer',
               background: recording ? '#f97316' : 'transparent',
               color: recording ? '#fff' : '#8c7164',
@@ -434,6 +445,13 @@ export default function Chat() {
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes bounce {
+          0%, 60%, 100% { transform: translateY(0); }
+          30% { transform: translateY(-8px); }
+        }
+      `}</style>
     </div>
   );
 }
